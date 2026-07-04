@@ -1,0 +1,11 @@
+services:
+  ai-research-kb:
+    build: .
+    volumes:
+      - ./research:/app/research
+      - ./examples:/app/examples
+      - ./config.yaml:/app/config.yaml:ro
+      - ./index:/app/index
+    env_file:
+      - .env
+    command: ["--help"]

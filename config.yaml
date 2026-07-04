@@ -1,0 +1,34 @@
+# Bu repo'nun kendi (dogfooding) yapılandırması.
+# Alan açıklamaları için config.example.yaml dosyasına bakın.
+
+canonical_terms:
+  - term: "LLM"
+    aliases: ["Large Language Model", "büyük dil modeli"]
+  - term: "RAG"
+    aliases: ["Retrieval-Augmented Generation", "retrieval augmented generation"]
+  - term: "re-ranking"
+    aliases: ["yeniden sıralama"]
+
+expected_sections:
+  analysis: ["Özet", "Bağlam", "Bulgular", "Sonuç"]
+  design: ["Özet", "Gereksinimler", "Tasarım", "Alternatifler", "Riskler"]
+  change-plan: ["Özet", "Değişiklikler", "Etki", "Rollout"]
+  notes: []
+  other: []
+
+time_sensitive_patterns:
+  - "\\bbeta\\b"
+  - "\\bGA\\b"
+  - "\\bşu anda\\b"
+  - "\\bcurrently\\b"
+  - "\\byakında\\b"
+  - "\\bsoon\\b"
+  - "\\bhenüz kesinleşmedi\\b"
+  - "\\bTBD\\b"
+  - "\\bTODO\\b"
+
+blocklist: []
+
+llm:
+  provider: null
+  model: null

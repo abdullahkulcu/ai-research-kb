@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Validate examples (frontmatter + comment anchors — critical)
+        run: ai-research-kb validate --root examples
+
+      - name: Validate research/ (frontmatter + comment anchors — critical)
+        run: |
+          if [ -d research ] && [ -n "$(find research -name '*.md' -print -quit)" ]; then
+            ai-research-kb validate --root research
+          else
+            echo "research/ boş, atlanıyor."
+          fi
+
+      - name: Consistency report (informational, does not fail the build)
+        run: |
+          mkdir -p .ci-out
+          if [ -d research ] && [ -n "$(find research -name '*.md' -print -quit)" ]; then
+            ai-research-kb check-consistency --root research --format md --output .ci-out/report.md
+          else
+            {
+              echo "# Tutarlılık Raporu"
+              echo ""
+              echo "research/ boş olduğu için kontrol atlandı."
+            } > .ci-out/report.md
+          fi
+          cat .ci-out/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment consistency report on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: tutarlilik-raporu
+          path: .ci-out/report.md

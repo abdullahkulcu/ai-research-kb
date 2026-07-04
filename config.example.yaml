@@ -1,0 +1,53 @@
+# ai-research-kb yapılandırma örneği.
+#
+# Bu dosyayı `config.yaml` olarak kopyalayıp kendi projenize göre düzenleyin:
+#   cp config.example.yaml config.yaml
+#
+# Hiçbir alan zorunlu değildir; eksik/boş bırakılan her şey için tool içindeki
+# varsayılanlar (src/ai_research_kb/config.py) kullanılır ve ilgili kontrol
+# sessizce atlanır (graceful degradation).
+
+# Terminoloji tutarlılığı (3b): aynı kavram için kullanılan farklı ifadeleri
+# kanonik bir terime bağlar. `aliases` içinde geçen her ifade, dokümanlarda
+# bulunduğunda "kanonik terim önerilir" uyarısı üretir.
+canonical_terms:
+  - term: "LLM"
+    aliases: ["Large Language Model", "büyük dil modeli"]
+  - term: "RAG"
+    aliases: ["Retrieval-Augmented Generation", "retrieval augmented generation"]
+  - term: "re-ranking"
+    aliases: ["yeniden sıralama"]
+
+# Yapı/gap kontrolü (3e): her doc_type için beklenen ## bölüm başlıkları.
+# Bir doküman bu başlıklardan birini içermiyorsa "beklenen bölüm eksik" olarak
+# raporlanır. Boş liste = kontrol o doc_type için atlanır.
+expected_sections:
+  analysis: ["Özet", "Bağlam", "Bulgular", "Sonuç"]
+  design: ["Özet", "Gereksinimler", "Tasarım", "Alternatifler", "Riskler"]
+  change-plan: ["Özet", "Değişiklikler", "Etki", "Rollout"]
+  notes: []
+  other: []
+
+# Zamana duyarlı iddia kontrolü (3d): bu regex'lerden biriyle eşleşen satırlar
+# "eskiyebilir, gözden geçirilmeli" olarak işaretlenir.
+time_sensitive_patterns:
+  - "\\bbeta\\b"
+  - "\\bGA\\b"
+  - "\\bşu anda\\b"
+  - "\\bcurrently\\b"
+  - "\\byakında\\b"
+  - "\\bsoon\\b"
+  - "\\bhenüz kesinleşmedi\\b"
+  - "\\bTBD\\b"
+  - "\\bTODO\\b"
+
+# Public repo hijyeni: dokümanlarda görünmemesi gereken iç/kurumsal terimler.
+# (Faz 1'de sadece config'ten okunur; kontrolü sonraki bir fazda genişletilebilir.)
+blocklist: []
+
+# LLM gerektiren adımlar (çelişki adayı tespiti, acceptance criteria, diff özeti)
+# opsiyoneldir. provider boş bırakılırsa bu adımlar sessizce atlanır ve tool
+# geri kalanıyla normal çalışmaya devam eder.
+llm:
+  provider: null   # null | "anthropic"
+  model: null       # null ise sağlayıcının varsayılan modeli kullanılır

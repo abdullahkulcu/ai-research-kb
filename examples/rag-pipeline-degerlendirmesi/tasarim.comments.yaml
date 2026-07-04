@@ -1,0 +1,24 @@
+comments:
+  - id: c1a2b3c4
+    anchor: "Riskler"
+    author: ayse
+    created: "2026-05-15T10:00:00+00:00"
+    body: >-
+      Çok dilli embedding kalite riskini nicel olarak da ölçmeliyiz
+      (ör. dil bazlı recall).
+    status: open
+    thread: []
+  - id: d4e5f6a7
+    anchor: "Alternatif olarak tek dilli embedding + query translation değerlendirildi"
+    author: mehmet
+    created: "2026-05-14T09:30:00+00:00"
+    body: Bu alternatifin maliyet karşılaştırmasını da ekleyelim.
+    status: resolved
+    thread:
+      - id: e5f6a7b8
+        anchor: "Alternatif olarak tek dilli embedding + query translation değerlendirildi"
+        author: ayse
+        created: "2026-05-14T11:00:00+00:00"
+        body: Maliyet karşılaştırması tasarım dokümanının bir sonraki versiyonuna eklenecek.
+        status: resolved
+        thread: []

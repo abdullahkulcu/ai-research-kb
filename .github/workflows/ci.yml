@@ -16,9 +16,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,web]"
 
-      - name: Run tests
+      - name: Run tests (CLI/library + web API)
         run: pytest -q
 
       - name: Validate examples (frontmatter + comment anchors — critical)

@@ -32,3 +32,10 @@ blocklist: []
 llm:
   provider: null
   model: null
+
+web:
+  access_token_expire_minutes: 480
+  cors_origins: ["http://localhost:5173"]
+  task_extraction:
+    heading: "Yapılacaklar"
+  docs_root: "research"

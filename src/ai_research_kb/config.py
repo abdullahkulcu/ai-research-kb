@@ -30,6 +30,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     ],
     "blocklist": [],
     "llm": {"provider": None, "model": None},
+    "web": {
+        "access_token_expire_minutes": 480,
+        "cors_origins": ["http://localhost:5173"],
+        "task_extraction": {"heading": "Yapılacaklar"},
+        # Repo-relative directory the web panel scans for docs. Point this at
+        # "examples" for a demo instance; real deployments use "research".
+        "docs_root": "research",
+    },
 }
 
 

@@ -1,0 +1,20 @@
+# Web panel kullanıcıları şablonu.
+#
+# Gerçek users.yaml dosyanızı elle yazmayın — şifre hash'i üretmek için:
+#   ai-research-kb web create-user <kullanici-adi> --role admin
+# Bu komut sizden şifre ister, bcrypt ile hash'ler ve users.yaml'a idempotent
+# olarak (aynı kullanıcı adıyla tekrar çalıştırılırsa günceller) yazar.
+#
+# users.yaml .gitignore'dadır (credentials sensitive) — bu dosya sadece şemayı
+# gösteren, sahte bir örnektir.
+
+users:
+  - username: admin
+    role: admin
+    password_hash: "$2b$12$ORNEKORNEKORNEKORNEKOuJXqXqXqXqXqXqXqXqXqXqXqXqXqXqO"
+  - username: ayse
+    role: editor
+    password_hash: "$2b$12$ORNEKORNEKORNEKORNEKOuJXqXqXqXqXqXqXqXqXqXqXqXqXqXqO"
+  - username: mehmet
+    role: viewer
+    password_hash: "$2b$12$ORNEKORNEKORNEKORNEKOuJXqXqXqXqXqXqXqXqXqXqXqXqXqXqO"

@@ -35,7 +35,8 @@ kod etkisi üretip ClickUp gibi harici bir task sistemine aktarır.
   web-native karşılıklarını üretir. Alt adımlar:
   - ✅ **1a — Backend scaffold**: FastAPI, JWT auth, `/research`'ü saran REST
     API'ler (search, get_doc, comments, consistency, minimal task-plan).
-  - ⏳ **1b — Frontend skeleton**: React login + arama + doküman görünümü.
+  - ✅ **1b — Frontend skeleton**: React login + arama + doküman görünümü
+    (`web-ui/`).
   - ⏳ **1c — Permission layer**: admin/editor/viewer rol zorlaması.
   - ⏳ **Faz 2 (web)** — ClickUp entegrasyonu panelden (dry-run → push).
 - ⏳ Yerel embedding index / gerçek RAG araması ve MCP server, 1a'daki
@@ -58,13 +59,17 @@ cp .env.example .env                 # LLM/ClickUp anahtarları opsiyonel
 docker compose build
 touch users.yaml   # ilk çalıştırmadan önce: boş dosya, bind mount için gerekli
 docker compose run --rm cli validate --root examples
-docker compose up api   # http://localhost:8000 — web panel API'si
+docker compose up api web   # http://localhost:8000 (API) + http://localhost:4173 (panel)
 ```
 
 `docker-compose.yml`, `research/`, `examples/`, `config.yaml`, `index/` ve
 `users.yaml`'ı konteynerlere bağlar; kendi dokümanlarınızı `research/` altına
-koyduğunuzda ekstra bir adım gerekmez. İki servis var: `cli` (tek seferlik
-komutlar için) ve `api` (web panel, sürekli çalışır).
+koyduğunuzda ekstra bir adım gerekmez. Üç servis var: `cli` (tek seferlik
+komutlar için), `api` (web panel backend'i) ve `web` (frontend, `vite preview`
+ile üretim build'i sunar — `VITE_API_BASE` build argümanı `http://localhost:8000/api`
+olarak sabitlenmiştir, tarayıcıdan erişim için). `api` içinde henüz kullanıcı
+yoksa panelde giriş çalışmaz: `docker compose run --rm cli web create-user
+admin --role admin` ile bir tane oluşturun.
 
 ## Doküman yapısı
 
@@ -186,6 +191,25 @@ sadece numaralı liste çıkarımı. ClickUp push (dry-run + gerçek, idempotent
 `task_ref` yazımı) web panel'in **Faz 2**'sinde eklenecek. Arama da gerçek bir
 embedding indexi değil, basit anahtar kelime eşleşmesidir; `search_docs()`
 imzası sabit tutuldu ki gerçek indeks eklendiğinde API/frontend değişmesin.
+
+## Frontend (`web-ui/`, opsiyonel)
+
+Minimal bir Vite + React uygulaması: giriş, arama sekmesi, doküman görünümü
+(frontmatter tablosu + `related_docs` üzerinden gezinme). Yorum thread'i, task
+listesi ve ClickUp butonu henüz yok — sırasıyla 1c (rol zorlaması) ve Faz 2
+(ClickUp) ile birlikte gelecek, çünkü bunları rol kontrolü olmadan göstermek
+yanıltıcı olurdu.
+
+```bash
+cd web-ui
+npm install
+cp .env.example .env   # VITE_API_BASE, varsayılan http://localhost:8000/api
+npm run dev            # http://localhost:5173
+```
+
+Backend'in `config.yaml`'daki `web.cors_origins` listesi frontend'in çalıştığı
+origin'i içermeli (varsayılan `http://localhost:5173` — `127.0.0.1` ile
+`localhost` tarayıcı için farklı origin'dir, ikisini karıştırmayın).
 
 ## Test
 

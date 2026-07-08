@@ -72,6 +72,28 @@ kontroller kasıtlı olarak ayrı modüllerde: `frontmatter.py` + `comments.py`
   bazlı kısıtlama (`require_role`, `roles.py`'de hazır) henüz hiçbir route'a
   bağlanmadı — bu bilinçli, Faz 1c'nin kapsamı.
 
+```
+web-ui/            # opsiyonel Vite+React frontend (npm install, ayrı proje)
+  src/api.js         # fetch wrapper; 401 -> AuthError (instanceof ile yakala)
+  src/App.jsx        # session state (localStorage), login/search/docview geçişi
+  src/pages/         # Login, Search, DocView
+  src/markdown.js    # elle yazılmış küçük markdown parser (kütüphane YOK —
+                     # başlık/liste/paragraf yeterli, "minimal frontend" kapsamı)
+```
+
+`web-ui/` hakkında önemli noktalar:
+- 1b kapsamı kasıtlı olarak dar: login + arama + doküman görünümü. Yorum
+  thread'i, task listesi, ClickUp butonu, handoff indirme HENÜZ YOK — sırasıyla
+  1c (rol bazlı UI) ve Faz 2 (ClickUp) ile birlikte eklenecek; onlardan önce
+  eklemek rol kontrolü olmadan editor-only özellikleri herkese göstermek
+  anlamına gelirdi.
+- **CORS tuzağı**: tarayıcı `localhost` ve `127.0.0.1`'i FARKLI origin sayar.
+  `config.yaml`'daki `web.cors_origins` varsayılanı `http://localhost:5173`;
+  Vite'ı `--host 127.0.0.1` ile başlatırsanız CORS hatası alırsınız — `--host
+  localhost` kullanın (bu repoda bir kez bu yüzden debug yapıldı).
+- Doküman gövdesinin kendi `# Başlık`'ı, frontmatter `title`'ı ile aynıysa
+  `DocView` bunu ikinci kez göstermez (bkz. `parseBlocks` filtre mantığı).
+
 ## Test / doğrulama
 
 ```bash
@@ -102,7 +124,7 @@ CLI-sadece araçtan web-first bir panele geçiş; orijinal Faz 2 (index/RAG/MCP)
 ve Faz 3'ün (flow/task/ClickUp) web-native karşılıklarını üretiyor, CLI'yi
 silmeden. Alt adımlar (kullanıcının kendi numaralandırması):
 - ✅ 1a — Backend scaffold (FastAPI, JWT, `web/` altında yukarıdaki uçlar)
-- ⏳ 1b — Frontend skeleton (React: login, arama, doküman görünümü)
+- ✅ 1b — Frontend skeleton (`web-ui/`: login, arama, doküman görünümü)
 - ⏳ 1c — Permission layer (admin/editor/viewer route zorlaması)
 - ⏳ Faz 2 (web) — ClickUp entegrasyonu panelden (dry-run → push, idempotent)
 

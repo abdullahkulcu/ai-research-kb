@@ -16,6 +16,7 @@ index/
 # Web panel kullanıcı deposu — credentials sensitive, örnek şema users.example.yaml'da.
 users.yaml
 
-# React frontend build/deps (Faz 1b'de eklenecek)
+# React frontend build/deps
 web-ui/node_modules/
 web-ui/dist/
+web-ui/.env

@@ -55,7 +55,7 @@ llm:
 # Web panel (`ai-research-kb serve`, opsiyonel — CLI'nin geri kalanı etkilenmez).
 web:
   access_token_expire_minutes: 480
-  cors_origins: ["http://localhost:5173"]
+  cors_origins: ["http://localhost:5173", "http://localhost:4173"]
   # "## Yapılacaklar" gibi bir başlık altındaki numaralı listeleri task-plan.yaml'a
   # çıkaran hafif çıkarımın aradığı başlık adı.
   task_extraction:

@@ -29,9 +29,20 @@ kod etkisi üretip ClickUp gibi harici bir task sistemine aktarır.
 ## Faz durumu
 
 - ✅ **Faz 1** — Yapı, frontmatter şeması, yorum katmanı, tutarlılık kontrolü,
-  CI entegrasyonu. (Bu repo şu an burada.)
-- ⏳ **Faz 2** — Yerel embedding index, RAG araması, MCP server.
-- ⏳ **Faz 3** — Research → flow → task planı → kod etki analizi → ClickUp.
+  CI entegrasyonu.
+- 🔄 **Web panel** (bu repo şu an burada) — CLI-sadece araçtan web-first bir
+  panele geçiş; orijinal Faz 2 (arama/RAG) ve Faz 3'ün (task planı/ClickUp)
+  web-native karşılıklarını üretir. Alt adımlar:
+  - ✅ **1a — Backend scaffold**: FastAPI, JWT auth, `/research`'ü saran REST
+    API'ler (search, get_doc, comments, consistency, minimal task-plan).
+  - ✅ **1b — Frontend skeleton**: React login + arama + doküman görünümü
+    (`web-ui/`).
+  - ✅ **1c — Permission layer**: admin/editor/viewer rol zorlaması (backend
+    403 + frontend'de rol bazlı UI gizleme).
+  - ✅ **Faz 2 (web)** — ClickUp entegrasyonu panelden (dry-run → onay → push,
+    idempotent).
+- ⏳ Yerel embedding index / gerçek RAG araması ve MCP server, 1a'daki
+  basit anahtar kelime aramasının yerini alacak (bkz. "Bilinen sınırlamalar").
 
 ## Kurulum
 
@@ -48,12 +59,19 @@ cp .env.example .env                 # LLM/ClickUp anahtarları opsiyonel
 
 ```bash
 docker compose build
-docker compose run --rm ai-research-kb validate --root examples
+touch users.yaml   # ilk çalıştırmadan önce: boş dosya, bind mount için gerekli
+docker compose run --rm cli validate --root examples
+docker compose up api web   # http://localhost:8000 (API) + http://localhost:4173 (panel)
 ```
 
-`docker-compose.yml`, `research/`, `examples/`, `config.yaml` ve `index/`
-dizinlerini konteynere bağlar; kendi dokümanlarınızı `research/` altına
-koyduğunuzda ekstra bir adım gerekmez.
+`docker-compose.yml`, `research/`, `examples/`, `config.yaml`, `index/` ve
+`users.yaml`'ı konteynerlere bağlar; kendi dokümanlarınızı `research/` altına
+koyduğunuzda ekstra bir adım gerekmez. Üç servis var: `cli` (tek seferlik
+komutlar için), `api` (web panel backend'i) ve `web` (frontend, `vite preview`
+ile üretim build'i sunar — `VITE_API_BASE` build argümanı `http://localhost:8000/api`
+olarak sabitlenmiştir, tarayıcıdan erişim için). `api` içinde henüz kullanıcı
+yoksa panelde giriş çalışmaz: `docker compose run --rm cli web create-user
+admin --role admin` ile bir tane oluşturun.
 
 ## Doküman yapısı
 
@@ -114,6 +132,114 @@ ai-research-kb comment resolve examples/rag-pipeline-degerlendirmesi/tasarim.md 
 - **d)** Zamana duyarlı iddia: tarih/beta/GA gibi ifadeler.
 - **e)** Yapı/gap: `doc_type`'a göre beklenen bölümlerin eksik olanları.
 
+## Web panel (opsiyonel, `pip install -e ".[web]"`)
+
+CLI'nin yanında, aynı kütüphaneyi (`ai_research_kb`) saran bir FastAPI backend
+çalışır — CLI komutları hiçbir şekilde etkilenmez, ikisi yan yana kullanılabilir.
+
+```bash
+pip install -e ".[web]"
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"   # WEB_JWT_SECRET için
+# .env içine WEB_JWT_SECRET=<üretilen değer> yazın
+
+ai-research-kb web create-user admin --role admin      # şifre interaktif sorulur
+ai-research-kb web create-user ayse --role editor
+ai-research-kb web create-user mehmet --role viewer
+
+ai-research-kb serve   # http://127.0.0.1:8000
+```
+
+`users.yaml` (repo kökü) `.env` gibi gitignore'dadır; şema için
+`users.example.yaml`'a bakın. Roller: `admin` > `editor` > `viewer` (hiyerarşik).
+
+Panelin taradığı dizin `config.yaml`'daki `web.docs_root` ile belirlenir
+(varsayılan `research`; demo için `examples` yapılabilir).
+
+### Uçlar ve roller
+
+| Uç | Açıklama | Minimum rol |
+| --- | --- | --- |
+| `POST /api/auth/login` | `{username, password}` → JWT + rol | — |
+| `GET /api/auth/me` | Geçerli kullanıcı | viewer |
+| `GET /api/search?q=&cluster=&status=&doc_type=` | Anahtar kelime araması; sonuçlar `related_docs` içerir | viewer |
+| `GET /api/clusters`, `GET /api/clusters/{cluster}` | Cluster listesi + çapraz referans haritası | viewer |
+| `GET /api/docs/{cluster}/{doc}` | Frontmatter + doküman gövdesi | viewer |
+| `GET /api/docs/{cluster}/{doc}/comments` | Yorum listesi (`comments.py`'yi sarar) | viewer |
+| `POST .../comments`, `.../comments/{id}/resolve` | Yorum ekle/çözümle | **editor** |
+| `GET /api/consistency?cluster=` | Tutarlılık raporu (a-e), JSON | viewer |
+| `GET /api/tasks/{cluster}` | Task listesi | viewer |
+| `POST .../generate`, `PATCH .../{id}`, `POST .../{id}/approve` | Bkz. "Task planlama (MVP)" | **editor** |
+| `POST /api/tasks/{cluster}/clickup/push` | Bkz. "ClickUp push (Faz 2)" | **editor** |
+
+Tüm uçlar `Authorization: Bearer <token>` ister; roller hiyerarşiktir
+(`admin` > `editor` > `viewer`) — editor gerektiren bir uca admin de erişebilir.
+Yetkisiz istek `403` döner (`web/deps.py::require_role`).
+
+### Task planlama (MVP)
+
+`POST /api/tasks/{cluster}/generate`, cluster'daki dokümanlarda yapılandırılmış
+başlık (varsayılan `## Yapılacaklar`) altındaki numaralı listeleri
+`<cluster>/task-plan.yaml`'a çıkarır — idempotent (var olan task'ları asla
+silmez/ezmez, sadece yenilerini ekler). `PATCH` ile başlık/açıklama/effort
+düzenlenebilir, `approve` ile onaylanır. `task-plan.yaml`, `index/` gibi
+türetilmiş/mutasyona uğrayan bir dosyadır — `/examples` altında committed
+edilmez (aksi halde örnek cluster "temiz başlangıç" özelliğini kaybeder);
+`examples/rag-pipeline-degerlendirmesi` üzerinde kendiniz deneyebilirsiniz:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/tasks/rag-pipeline-degerlendirmesi/generate \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Bilinen sınırlamalar (bilinçli MVP kapsamı):** bu, orijinal Faz 3 planındaki
+tam `flow.yaml` + bağımlılık çıkarımı + kod etki analizi boru hattı değildir —
+sadece numaralı liste çıkarımı. Arama da gerçek bir embedding indexi değil,
+basit anahtar kelime eşleşmesidir; `search_docs()` imzası sabit tutuldu ki
+gerçek indeks eklendiğinde API/frontend değişmesin.
+
+### ClickUp push (Faz 2)
+
+`POST /api/tasks/{cluster}/clickup/push` `{"dry_run": true|false}` alır.
+Sadece `status: approved` ve henüz `task_ref`'i olmayan task'lar işlenir —
+zaten gönderilmiş olanlar `"skip"` ile atlanır (idempotent, tekrar çalıştırmak
+duplicate yaratmaz). `dry_run: true` (varsayılan) hiçbir API çağrısı yapmaz,
+sadece ne olacağını döner:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/tasks/rag-pipeline-degerlendirmesi/clickup/push \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
+```
+
+Gerçek push (`dry_run: false`) için `.env`'de `CLICKUP_API_TOKEN` ve
+`config.yaml`'da `clickup.list_id` gerekir; eksikse `400` ile net bir hata
+döner (asla sessizce atlamaz — bu harici bir mutasyon, LLM gibi opsiyonel bir
+adım değil). Oluşan `task_ref`/`task_url` `task-plan.yaml`'a geri yazılır.
+Web panelde "ClickUp'a Gönder" butonu önce dry-run sonucunu bir onay
+diyaloğunda gösterir, kullanıcı onaylarsa gerçek push'u tetikler.
+
+## Frontend (`web-ui/`, opsiyonel)
+
+Minimal bir Vite + React uygulaması: giriş, arama sekmesi, doküman görünümü
+(frontmatter tablosu + `related_docs` üzerinden gezinme + yorum thread'i),
+Task'lar sekmesi (cluster seç → listele/oluştur/onayla/düzenle/ClickUp'a
+gönder). Yorum ekleme formu ve task yazma aksiyonları (ClickUp push dahil)
+sadece `editor`/`admin` rolünde görünür — `viewer` aynı verileri salt-okunur
+görür (gerçek zorlama backend'de; frontend sadece UI'yı buna göre gizler).
+Handoff paketi indirme henüz yok.
+
+```bash
+cd web-ui
+npm install
+cp .env.example .env   # VITE_API_BASE, varsayılan http://localhost:8000/api
+npm run dev            # http://localhost:5173
+```
+
+Backend'in `config.yaml`'daki `web.cors_origins` listesi frontend'in çalıştığı
+origin'i içermeli (varsayılan `http://localhost:5173` — `127.0.0.1` ile
+`localhost` tarayıcı için farklı origin'dir, ikisini karıştırmayın).
+
 ## Test
 
 ```bash
@@ -121,7 +247,8 @@ pytest
 ```
 
 Testler, `/examples/rag-pipeline-degerlendirmesi/` altındaki sentetik cluster
-üzerinde çalışır ve yukarıdaki tüm kontrolleri kapsar.
+üzerinde çalışır ve yukarıdaki tüm kontrolleri kapsar (`tests/`: CLI/kütüphane,
+`tests/web/`: FastAPI uçları, `httpx`/`TestClient` ile).
 
 ## Lisans
 

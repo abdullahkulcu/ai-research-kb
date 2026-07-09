@@ -20,8 +20,10 @@ olabilir.
 - **Kaynak doğruluk = git**: `research/**/*.md`. `index/`, raporlar, task
   planları türetilmiştir ve sıfırdan yeniden üretilebilir olmalı.
 - **Harici mutasyona doğrudan atlama yok**: research → ClickUp arasındaki her
-  adım repo içinde düzenlenebilir bir dosya üretir; kullanıcı onaylamadan
-  harici bir çağrı yapılmaz (Faz 3).
+  adım repo içinde düzenlenebilir bir dosya üretir (`task-plan.yaml`);
+  kullanıcı onaylamadan harici bir çağrı yapılmaz. Uygulaması:
+  `web/services/clickup.py::push_tasks` — `dry_run=True` asla HTTP çağırmaz,
+  frontend gerçek push'tan önce dry-run sonucunu bir onay diyaloğunda gösterir.
 - **Public repo hijyeni**: kod içine hiçbir kurumsal/iç bilgi hardcode edilmez;
   kanonik terimler / beklenen bölümler / blocklist `config.yaml`'dan okunur.
   Örnekler yalnızca `/examples` altında ve sentetiktir.
@@ -38,18 +40,85 @@ src/ai_research_kb/
   comments.py     # <doc>.comments.yaml CRUD + anchor doğrulama (CI'da fail eder)
   consistency.py  # bilgilendirici kontroller a-e (CI'yı düşürmez, sadece rapor)
   llm.py          # opsiyonel LLM sağlayıcı arayüzü (Anthropic; graceful degrade)
-  cli.py          # `ai-research-kb` CLI (typer)
+  cli.py          # `ai-research-kb` CLI (typer) — validate, check-consistency,
+                  # comment, serve, web create-user
+  web/            # opsiyonel FastAPI panel; CLI'yi SARAR, onu değiştirmez
+    auth.py, deps.py, roles.py, users.py   # JWT + users.yaml + RBAC hiyerarşisi
+    schemas.py                              # REST request/response modelleri
+    routers/       # auth, search, docs, comments, consistency, tasks, clickup
+    services/      # search.py (anahtar kelime, embedding'in yerini tutuyor),
+                   # tasks.py (minimal task-plan.yaml çıkarımı/CRUD),
+                   # clickup.py (idempotent push, injectable HTTP client), clusters.py
 ```
 
 Kritik (build'i düşüren) kontroller ile bilgilendirici (sadece rapor eden)
 kontroller kasıtlı olarak ayrı modüllerde: `frontmatter.py` + `comments.py`
 = kritik; `consistency.py` = rapor. Bu ayrımı bozmayın.
 
+`web/` katmanı hakkında önemli noktalar:
+- Tamamen opsiyonel (`pip install -e ".[web]"`); kurulu değilse CLI'nin geri
+  kalanı etkilenmez (`cli.py`'deki `serve`/`web create-user` komutları içeride
+  `import` yapıp `ImportError` durumunda net bir mesajla çıkar).
+- `deps.get_app_root()` (gerçek repo kökü — `users.yaml`/`config.yaml` için) ile
+  `deps.get_docs_root()` (`config.yaml`'daki `web.docs_root`, taranan dizin)
+  bilinçli olarak ayrı tutulur; bunları birbirine karıştırmayın (Faz 1a'da bir
+  kez bu yüzden config sessizce built-in default'a düşen bir bug oldu).
+- `services/search.py` gerçek bir embedding indeksi DEĞİL, basit anahtar kelime
+  araması; imza (query, filters) sabit tutuldu ki gerçek indeks eklendiğinde
+  sadece bu dosya değişsin.
+- `services/tasks.py`, orijinal Faz 3'teki tam `flow.yaml`/kod-etki-analizi
+  planının küçük bir alt kümesidir: sadece yapılandırılmış bir başlık (vars.
+  "Yapılacaklar") altındaki numaralı listeleri çıkarır. `generate_tasks` HER
+  ZAMAN idempotent ve non-destructive olmalı — var olan task'ları asla silme/
+  ezme, sadece yeni (stable id ile) ekle.
+- RBAC (Faz 1c): yazma uçları (`comments` POST/resolve, `tasks` generate/
+  patch/approve, `clickup` push) `require_role(Role.editor)` ister; okuma
+  uçları herkese (`get_current_user`) açık. `admin` hiyerarşide `editor`'ü
+  kapsar (`roles.py::at_least`) — yeni bir admin-only uç eklerken bunu unutmayın.
+- `services/clickup.py` (Faz 2): `push_tasks()` sadece `status: approved` VE
+  `task_ref` boş olan task'ları işler (idempotent — ikinci çalıştırma "skip"
+  döner, duplicate yaratmaz). `dry_run=True` HİÇBİR ZAMAN HTTP çağrısı yapmaz.
+  HTTP client `http_client` parametresiyle inject edilebilir (gerçek
+  `httpx.Client` yerine) — testler network'e hiç dokunmadan `FakeClient` ile
+  çalışır; router bu parametreyi geçmez, gerçek push'ta `_real_client()`
+  kullanılır (testlerde `monkeypatch.setattr(clickup_service, "_real_client", ...)`
+  ile değiştirilir).
+
+```
+web-ui/            # opsiyonel Vite+React frontend (npm install, ayrı proje)
+  src/api.js         # fetch wrapper; 401 -> AuthError (instanceof ile yakala)
+  src/roles.js       # isEditorOrAbove(role) — backend roles.py ile eş anlamlı,
+                     # SADECE UI gizleme; gerçek zorlama backend'de
+  src/App.jsx        # session state (localStorage), tab nav (Ara/Task'lar) +
+                     # doküman görünümü geçişi
+  src/pages/         # Login, Search, DocView, Tasks
+  src/components/Comments.jsx  # DocView içine gömülü yorum thread'i; editor+
+                                # değilse form yerine bilgi metni gösterir
+  src/markdown.js    # elle yazılmış küçük markdown parser (kütüphane YOK —
+                     # başlık/liste/paragraf yeterli, "minimal frontend" kapsamı)
+```
+
+`web-ui/` hakkında önemli noktalar:
+- Handoff paketi indirme HENÜZ YOK.
+- "ClickUp'a Gönder" butonu: önce `dry_run:true` ile önizleme çeker, sonucu
+  `window.confirm`'de gösterir, kullanıcı onaylarsa `dry_run:false` ile gerçek
+  push'u tetikler. Native `confirm`/`alert` — modal component YOK (minimal
+  frontend kapsamı, `handleEdit`'teki `window.prompt` ile aynı desen).
+- Rol bazlı UI gizleme (`isEditorOrAbove`) sadece görünürlük içindir; gerçek
+  yetkilendirme backend'de (`require_role`) yapılır — frontend kodunu
+  değiştirmek bir viewer'a yazma izni VERMEZ, backend zaten 403 döner.
+- **CORS tuzağı**: tarayıcı `localhost` ve `127.0.0.1`'i FARKLI origin sayar.
+  `config.yaml`'daki `web.cors_origins` varsayılanı `http://localhost:5173`;
+  Vite'ı `--host 127.0.0.1` ile başlatırsanız CORS hatası alırsınız — `--host
+  localhost` kullanın (bu repoda bir kez bu yüzden debug yapıldı).
+- Doküman gövdesinin kendi `# Başlık`'ı, frontmatter `title`'ı ile aynıysa
+  `DocView` bunu ikinci kez göstermez (bkz. `parseBlocks` filtre mantığı).
+
 ## Test / doğrulama
 
 ```bash
-pip install -e ".[dev]"
-pytest
+pip install -e ".[dev,web]"
+pytest                                    # tests/ (CLI) + tests/web/ (FastAPI)
 ai-research-kb validate --root examples
 ai-research-kb check-consistency --root examples
 ```
@@ -57,9 +126,32 @@ ai-research-kb check-consistency --root examples
 `/examples/rag-pipeline-degerlendirmesi/` kasıtlı olarak hem geçerli hem de
 tutarlılık kontrollerinin her birini (a-e) tetikleyecek küçük kusurlar içeren
 sentetik bir cluster'dır — yeni bir kontrol eklerken önce burada test edin.
+`task-plan.yaml` (task-plan servisinin ürettiği dosya) BU CLUSTER'A ASLA
+committed EDİLMEMELİ — `index/` gibi türetilmiş/mutasyona uğrayan bir dosyadır;
+committed edilirse örnek cluster'ın "temiz başlangıç" varsayımı bozulur ve
+`tests/web/test_tasks_api.py`'deki "generate öncesi boş" / "generate sonrası
+hepsi proposed" testleri kırılır (bir kere böyle bir hataya düşüldü, tekrar
+etmeyin). `tasarim.comments.yaml` farklı: o append-only bir sidecar, committed
+kalması güvenli. `tests/web/` testleri zaten kendi disposable kopyalarını
+(`writable_client` fixture, `tmp_path`'e kopya) kullanır, gerçek `/examples`'ı
+hiç mutasyona uğratmaz.
 
 ## Faz durumu
 
-Faz 1 (bu commit) tamam: yapı, frontmatter, yorum katmanı, tutarlılık raporu,
-CI. Faz 2 (index/RAG/MCP) ve Faz 3 (flow/task/ClickUp) henüz başlamadı; kullanıcı
-onayı olmadan bu fazların kapsamına girmeyin.
+Orijinal doküman-odaklı plan: Faz 1 (yapı/frontmatter/yorum/tutarlılık) tamam.
+Bu plan artık bir **web panel** girişimiyle genişliyor (kullanıcı talebi):
+CLI-sadece araçtan web-first bir panele geçiş; orijinal Faz 2 (index/RAG/MCP)
+ve Faz 3'ün (flow/task/ClickUp) web-native karşılıklarını üretiyor, CLI'yi
+silmeden. Alt adımlar (kullanıcının kendi numaralandırması):
+- ✅ 1a — Backend scaffold (FastAPI, JWT, `web/` altında yukarıdaki uçlar)
+- ✅ 1b — Frontend skeleton (`web-ui/`: login, arama, doküman görünümü)
+- ✅ 1c — Permission layer (admin/editor/viewer route zorlaması, backend +
+  frontend UI gizleme)
+- ✅ Faz 2 (web) — ClickUp entegrasyonu panelden (dry-run → onay → push,
+  idempotent)
+
+Web panel MVP'sinin tüm alt adımları tamam. Kalan bilinçli sınırlamalar:
+gerçek embedding index/RAG (şu an anahtar kelime araması), tam `flow.yaml` +
+kod etki analizi boru hattı (şu an sadece "## Yapılacaklar" çıkarımı), handoff
+paketi indirme. Bunlardan birine girerken kullanıcı onayı olmadan başlamayın —
+her adımdan sonra test + özet + durup onay bekleme kuralı geçerli.

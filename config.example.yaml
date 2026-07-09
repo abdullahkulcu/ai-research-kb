@@ -51,3 +51,23 @@ blocklist: []
 llm:
   provider: null   # null | "anthropic"
   model: null       # null ise sağlayıcının varsayılan modeli kullanılır
+
+# Web panel (`ai-research-kb serve`, opsiyonel — CLI'nin geri kalanı etkilenmez).
+web:
+  access_token_expire_minutes: 480
+  cors_origins: ["http://localhost:5173", "http://localhost:4173"]
+  # "## Yapılacaklar" gibi bir başlık altındaki numaralı listeleri task-plan.yaml'a
+  # çıkaran hafif çıkarımın aradığı başlık adı.
+  task_extraction:
+    heading: "Yapılacaklar"
+  # Web panelin taradığı, repo köküne göreli dizin. Gerçek kullanımda "research",
+  # demo/deneme için "examples" olarak değiştirilebilir.
+  docs_root: "research"
+
+# ClickUp push (Faz 2, opsiyonel — web panelden "Task'lar" sekmesi). Token
+# BURADA DEĞİL: CLICKUP_API_TOKEN ortam değişkeninden (.env) okunur.
+clickup:
+  # Tasks'ın oluşturulacağı ClickUp List'in numeric id'si
+  # (List URL'sinde .../list/<id>). null ise gerçek push 400 döner; dry-run
+  # zaten API çağırmadığı için list_id/token olmadan da çalışır.
+  list_id: null

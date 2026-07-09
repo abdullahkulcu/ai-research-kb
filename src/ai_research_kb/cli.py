@@ -20,6 +20,8 @@ app = typer.Typer(
 )
 comment_app = typer.Typer(help="Yorum katmanı (<doc>.comments.yaml) işlemleri.")
 app.add_typer(comment_app, name="comment")
+web_app = typer.Typer(help="Web panel (FastAPI) yönetim işlemleri.")
+app.add_typer(web_app, name="web")
 
 
 def _default_root(root_opt: Path | None) -> Path:
@@ -129,6 +131,45 @@ def comment_resolve(doc: Path = typer.Argument(...), comment_id: str = typer.Arg
         typer.echo(f"Hata: {e}")
         raise typer.Exit(code=1)
     typer.echo("Yorum çözümlendi.")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8000, "--port"),
+    reload: bool = typer.Option(False, "--reload"),
+) -> None:
+    """Web panel API'sini başlat (WEB_JWT_SECRET .env'de tanımlı olmalı)."""
+    try:
+        import uvicorn
+    except ImportError:
+        typer.echo("Web bağımlılıkları kurulu değil: pip install -e '.[web]'")
+        raise typer.Exit(code=1)
+    uvicorn.run("ai_research_kb.web.main:app", host=host, port=port, reload=reload)
+
+
+@web_app.command("create-user")
+def web_create_user(
+    username: str = typer.Argument(...),
+    password: str = typer.Option(
+        ..., prompt=True, hide_input=True, confirmation_prompt=True, help="Şifre"
+    ),
+    role: str = typer.Option("viewer", "--role", help="admin | editor | viewer"),
+) -> None:
+    """users.yaml içinde bir kullanıcı oluştur/güncelle (idempotent, kullanıcı adına göre)."""
+    try:
+        from .web.roles import Role
+        from .web.users import upsert_user
+    except ImportError:
+        typer.echo("Web bağımlılıkları kurulu değil: pip install -e '.[web]'")
+        raise typer.Exit(code=1)
+    try:
+        role_enum = Role(role)
+    except ValueError:
+        typer.echo(f"Geçersiz rol: {role} (admin | editor | viewer)")
+        raise typer.Exit(code=1)
+    user = upsert_user(username, password, role_enum)
+    typer.echo(f"Kullanıcı kaydedildi: {user.username} ({user.role.value})")
 
 
 def main() -> None:

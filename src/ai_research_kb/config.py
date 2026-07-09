@@ -30,6 +30,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
     ],
     "blocklist": [],
     "llm": {"provider": None, "model": None},
+    "web": {
+        "access_token_expire_minutes": 480,
+        "cors_origins": ["http://localhost:5173", "http://localhost:4173"],
+        "task_extraction": {"heading": "Yapılacaklar"},
+        # Repo-relative directory the web panel scans for docs. Point this at
+        # "examples" for a demo instance; real deployments use "research".
+        "docs_root": "research",
+    },
+    # ClickUp push (Faz 2, web panel). Token comes from CLICKUP_API_TOKEN (.env),
+    # never from this file. list_id is the target ClickUp List's numeric id.
+    "clickup": {"list_id": None},
 }
 
 

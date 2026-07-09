@@ -38,6 +38,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # "examples" for a demo instance; real deployments use "research".
         "docs_root": "research",
     },
+    # ClickUp push (Faz 2, web panel). Token comes from CLICKUP_API_TOKEN (.env),
+    # never from this file. list_id is the target ClickUp List's numeric id.
+    "clickup": {"list_id": None},
 }
 
 

@@ -39,7 +39,8 @@ kod etkisi üretip ClickUp gibi harici bir task sistemine aktarır.
     (`web-ui/`).
   - ✅ **1c — Permission layer**: admin/editor/viewer rol zorlaması (backend
     403 + frontend'de rol bazlı UI gizleme).
-  - ⏳ **Faz 2 (web)** — ClickUp entegrasyonu panelden (dry-run → push).
+  - ✅ **Faz 2 (web)** — ClickUp entegrasyonu panelden (dry-run → onay → push,
+    idempotent).
 - ⏳ Yerel embedding index / gerçek RAG araması ve MCP server, 1a'daki
   basit anahtar kelime aramasının yerini alacak (bkz. "Bilinen sınırlamalar").
 
@@ -169,6 +170,7 @@ Panelin taradığı dizin `config.yaml`'daki `web.docs_root` ile belirlenir
 | `GET /api/consistency?cluster=` | Tutarlılık raporu (a-e), JSON | viewer |
 | `GET /api/tasks/{cluster}` | Task listesi | viewer |
 | `POST .../generate`, `PATCH .../{id}`, `POST .../{id}/approve` | Bkz. "Task planlama (MVP)" | **editor** |
+| `POST /api/tasks/{cluster}/clickup/push` | Bkz. "ClickUp push (Faz 2)" | **editor** |
 
 Tüm uçlar `Authorization: Bearer <token>` ister; roller hiyerarşiktir
 (`admin` > `editor` > `viewer`) — editor gerektiren bir uca admin de erişebilir.
@@ -192,20 +194,40 @@ curl -X POST http://127.0.0.1:8000/api/tasks/rag-pipeline-degerlendirmesi/genera
 
 **Bilinen sınırlamalar (bilinçli MVP kapsamı):** bu, orijinal Faz 3 planındaki
 tam `flow.yaml` + bağımlılık çıkarımı + kod etki analizi boru hattı değildir —
-sadece numaralı liste çıkarımı. ClickUp push (dry-run + gerçek, idempotent
-`task_ref` yazımı) web panel'in **Faz 2**'sinde eklenecek. Arama da gerçek bir
-embedding indexi değil, basit anahtar kelime eşleşmesidir; `search_docs()`
-imzası sabit tutuldu ki gerçek indeks eklendiğinde API/frontend değişmesin.
+sadece numaralı liste çıkarımı. Arama da gerçek bir embedding indexi değil,
+basit anahtar kelime eşleşmesidir; `search_docs()` imzası sabit tutuldu ki
+gerçek indeks eklendiğinde API/frontend değişmesin.
+
+### ClickUp push (Faz 2)
+
+`POST /api/tasks/{cluster}/clickup/push` `{"dry_run": true|false}` alır.
+Sadece `status: approved` ve henüz `task_ref`'i olmayan task'lar işlenir —
+zaten gönderilmiş olanlar `"skip"` ile atlanır (idempotent, tekrar çalıştırmak
+duplicate yaratmaz). `dry_run: true` (varsayılan) hiçbir API çağrısı yapmaz,
+sadece ne olacağını döner:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/tasks/rag-pipeline-degerlendirmesi/clickup/push \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"dry_run": true}'
+```
+
+Gerçek push (`dry_run: false`) için `.env`'de `CLICKUP_API_TOKEN` ve
+`config.yaml`'da `clickup.list_id` gerekir; eksikse `400` ile net bir hata
+döner (asla sessizce atlamaz — bu harici bir mutasyon, LLM gibi opsiyonel bir
+adım değil). Oluşan `task_ref`/`task_url` `task-plan.yaml`'a geri yazılır.
+Web panelde "ClickUp'a Gönder" butonu önce dry-run sonucunu bir onay
+diyaloğunda gösterir, kullanıcı onaylarsa gerçek push'u tetikler.
 
 ## Frontend (`web-ui/`, opsiyonel)
 
 Minimal bir Vite + React uygulaması: giriş, arama sekmesi, doküman görünümü
 (frontmatter tablosu + `related_docs` üzerinden gezinme + yorum thread'i),
-Task'lar sekmesi (cluster seç → listele/oluştur/onayla/düzenle). Yorum ekleme
-formu ve task yazma aksiyonları sadece `editor`/`admin` rolünde görünür —
-`viewer` aynı verileri salt-okunur görür (gerçek zorlama backend'de; frontend
-sadece UI'yı buna göre gizler). ClickUp butonu ve handoff indirme henüz yok,
-Faz 2'de eklenecek.
+Task'lar sekmesi (cluster seç → listele/oluştur/onayla/düzenle/ClickUp'a
+gönder). Yorum ekleme formu ve task yazma aksiyonları (ClickUp push dahil)
+sadece `editor`/`admin` rolünde görünür — `viewer` aynı verileri salt-okunur
+görür (gerçek zorlama backend'de; frontend sadece UI'yı buna göre gizler).
+Handoff paketi indirme henüz yok.
 
 ```bash
 cd web-ui

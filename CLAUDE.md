@@ -20,8 +20,10 @@ olabilir.
 - **Kaynak doğruluk = git**: `research/**/*.md`. `index/`, raporlar, task
   planları türetilmiştir ve sıfırdan yeniden üretilebilir olmalı.
 - **Harici mutasyona doğrudan atlama yok**: research → ClickUp arasındaki her
-  adım repo içinde düzenlenebilir bir dosya üretir; kullanıcı onaylamadan
-  harici bir çağrı yapılmaz (Faz 3).
+  adım repo içinde düzenlenebilir bir dosya üretir (`task-plan.yaml`);
+  kullanıcı onaylamadan harici bir çağrı yapılmaz. Uygulaması:
+  `web/services/clickup.py::push_tasks` — `dry_run=True` asla HTTP çağırmaz,
+  frontend gerçek push'tan önce dry-run sonucunu bir onay diyaloğunda gösterir.
 - **Public repo hijyeni**: kod içine hiçbir kurumsal/iç bilgi hardcode edilmez;
   kanonik terimler / beklenen bölümler / blocklist `config.yaml`'dan okunur.
   Örnekler yalnızca `/examples` altında ve sentetiktir.
@@ -43,9 +45,10 @@ src/ai_research_kb/
   web/            # opsiyonel FastAPI panel; CLI'yi SARAR, onu değiştirmez
     auth.py, deps.py, roles.py, users.py   # JWT + users.yaml + RBAC hiyerarşisi
     schemas.py                              # REST request/response modelleri
-    routers/       # auth, search, docs, comments, consistency, tasks
+    routers/       # auth, search, docs, comments, consistency, tasks, clickup
     services/      # search.py (anahtar kelime, embedding'in yerini tutuyor),
-                   # tasks.py (minimal task-plan.yaml çıkarımı/CRUD), clusters.py
+                   # tasks.py (minimal task-plan.yaml çıkarımı/CRUD),
+                   # clickup.py (idempotent push, injectable HTTP client), clusters.py
 ```
 
 Kritik (build'i düşüren) kontroller ile bilgilendirici (sadece rapor eden)
@@ -69,9 +72,17 @@ kontroller kasıtlı olarak ayrı modüllerde: `frontmatter.py` + `comments.py`
   ZAMAN idempotent ve non-destructive olmalı — var olan task'ları asla silme/
   ezme, sadece yeni (stable id ile) ekle.
 - RBAC (Faz 1c): yazma uçları (`comments` POST/resolve, `tasks` generate/
-  patch/approve) `require_role(Role.editor)` ister; okuma uçları herkese
-  (`get_current_user`) açık. `admin` hiyerarşide `editor`'ü kapsar
-  (`roles.py::at_least`) — yeni bir admin-only uç eklerken bunu unutmayın.
+  patch/approve, `clickup` push) `require_role(Role.editor)` ister; okuma
+  uçları herkese (`get_current_user`) açık. `admin` hiyerarşide `editor`'ü
+  kapsar (`roles.py::at_least`) — yeni bir admin-only uç eklerken bunu unutmayın.
+- `services/clickup.py` (Faz 2): `push_tasks()` sadece `status: approved` VE
+  `task_ref` boş olan task'ları işler (idempotent — ikinci çalıştırma "skip"
+  döner, duplicate yaratmaz). `dry_run=True` HİÇBİR ZAMAN HTTP çağrısı yapmaz.
+  HTTP client `http_client` parametresiyle inject edilebilir (gerçek
+  `httpx.Client` yerine) — testler network'e hiç dokunmadan `FakeClient` ile
+  çalışır; router bu parametreyi geçmez, gerçek push'ta `_real_client()`
+  kullanılır (testlerde `monkeypatch.setattr(clickup_service, "_real_client", ...)`
+  ile değiştirilir).
 
 ```
 web-ui/            # opsiyonel Vite+React frontend (npm install, ayrı proje)
@@ -88,7 +99,11 @@ web-ui/            # opsiyonel Vite+React frontend (npm install, ayrı proje)
 ```
 
 `web-ui/` hakkında önemli noktalar:
-- Handoff indirme ve ClickUp butonu HENÜZ YOK — Faz 2'nin kapsamı.
+- Handoff paketi indirme HENÜZ YOK.
+- "ClickUp'a Gönder" butonu: önce `dry_run:true` ile önizleme çeker, sonucu
+  `window.confirm`'de gösterir, kullanıcı onaylarsa `dry_run:false` ile gerçek
+  push'u tetikler. Native `confirm`/`alert` — modal component YOK (minimal
+  frontend kapsamı, `handleEdit`'teki `window.prompt` ile aynı desen).
 - Rol bazlı UI gizleme (`isEditorOrAbove`) sadece görünürlük içindir; gerçek
   yetkilendirme backend'de (`require_role`) yapılır — frontend kodunu
   değiştirmek bir viewer'a yazma izni VERMEZ, backend zaten 403 döner.
@@ -132,7 +147,11 @@ silmeden. Alt adımlar (kullanıcının kendi numaralandırması):
 - ✅ 1b — Frontend skeleton (`web-ui/`: login, arama, doküman görünümü)
 - ✅ 1c — Permission layer (admin/editor/viewer route zorlaması, backend +
   frontend UI gizleme)
-- ⏳ Faz 2 (web) — ClickUp entegrasyonu panelden (dry-run → push, idempotent)
+- ✅ Faz 2 (web) — ClickUp entegrasyonu panelden (dry-run → onay → push,
+  idempotent)
 
-Kullanıcı onayı olmadan bir sonraki alt adıma geçmeyin — her adımdan sonra
-test + özet + durup onay bekleme kuralı geçerli.
+Web panel MVP'sinin tüm alt adımları tamam. Kalan bilinçli sınırlamalar:
+gerçek embedding index/RAG (şu an anahtar kelime araması), tam `flow.yaml` +
+kod etki analizi boru hattı (şu an sadece "## Yapılacaklar" çıkarımı), handoff
+paketi indirme. Bunlardan birine girerken kullanıcı onayı olmadan başlamayın —
+her adımdan sonra test + özet + durup onay bekleme kuralı geçerli.

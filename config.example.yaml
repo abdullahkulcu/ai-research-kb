@@ -63,3 +63,11 @@ web:
   # Web panelin taradığı, repo köküne göreli dizin. Gerçek kullanımda "research",
   # demo/deneme için "examples" olarak değiştirilebilir.
   docs_root: "research"
+
+# ClickUp push (Faz 2, opsiyonel — web panelden "Task'lar" sekmesi). Token
+# BURADA DEĞİL: CLICKUP_API_TOKEN ortam değişkeninden (.env) okunur.
+clickup:
+  # Tasks'ın oluşturulacağı ClickUp List'in numeric id'si
+  # (List URL'sinde .../list/<id>). null ise gerçek push 400 döner; dry-run
+  # zaten API çağırmadığı için list_id/token olmadan da çalışır.
+  list_id: null

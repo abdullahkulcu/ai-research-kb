@@ -74,6 +74,50 @@ export default function Tasks({ token, role, onAuthError }) {
     }
   }
 
+  async function handleClickUpPush() {
+    setError(null);
+    try {
+      const preview = await apiFetch(`/tasks/${cluster}/clickup/push`, {
+        token,
+        method: "POST",
+        body: { dry_run: true },
+      });
+      const toCreate = preview.filter((r) => r.action === "would_create");
+      const alreadyPushed = preview.filter((r) => r.action === "skip");
+
+      if (toCreate.length === 0) {
+        window.alert(
+          alreadyPushed.length > 0
+            ? "Onaylanmış tüm task'lar zaten ClickUp'a gönderilmiş."
+            : "Onaylanmış (approved) ve gönderilmemiş task yok."
+        );
+        return;
+      }
+
+      const lines = [
+        `${toCreate.length} task ClickUp'a oluşturulacak:`,
+        ...toCreate.map((r) => `- ${r.title}`),
+      ];
+      if (alreadyPushed.length > 0) {
+        lines.push(`(${alreadyPushed.length} task zaten gönderilmiş, atlanacak)`);
+      }
+      lines.push("", "Devam edilsin mi?");
+      if (!window.confirm(lines.join("\n"))) return;
+
+      const result = await apiFetch(`/tasks/${cluster}/clickup/push`, {
+        token,
+        method: "POST",
+        body: { dry_run: false },
+      });
+      const createdCount = result.filter((r) => r.action === "created").length;
+      window.alert(`${createdCount} task ClickUp'a oluşturuldu.`);
+      loadTasks(cluster);
+    } catch (err) {
+      if (err instanceof AuthError) onAuthError();
+      else setError(err.message);
+    }
+  }
+
   return (
     <div className="tasks-page">
       <div className="tasks-toolbar">
@@ -85,9 +129,14 @@ export default function Tasks({ token, role, onAuthError }) {
           ))}
         </select>
         {canWrite ? (
-          <button onClick={handleGenerate} disabled={busy || !cluster}>
-            {busy ? "Oluşturuluyor…" : "Yeniden oluştur"}
-          </button>
+          <>
+            <button onClick={handleGenerate} disabled={busy || !cluster}>
+              {busy ? "Oluşturuluyor…" : "Yeniden oluştur"}
+            </button>
+            <button onClick={handleClickUpPush} disabled={!cluster}>
+              ClickUp'a Gönder
+            </button>
+          </>
         ) : (
           <span className="hint">Task oluşturmak/onaylamak için editor+ rolü gerekir.</span>
         )}
@@ -111,6 +160,7 @@ export default function Tasks({ token, role, onAuthError }) {
               <th>Effort</th>
               <th>Bağımlılıklar</th>
               <th>Kaynak</th>
+              <th>ClickUp</th>
               {canWrite && <th></th>}
             </tr>
           </thead>
@@ -124,6 +174,15 @@ export default function Tasks({ token, role, onAuthError }) {
                 <td>{t.effort || "—"}</td>
                 <td>{t.depends_on.length ? t.depends_on.join(", ") : "—"}</td>
                 <td className="tasks-source">{t.source_doc}</td>
+                <td>
+                  {t.task_url ? (
+                    <a href={t.task_url} target="_blank" rel="noreferrer">
+                      #{t.task_ref}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 {canWrite && (
                   <td className="tasks-actions">
                     <button className="link-button" onClick={() => handleEdit(t)}>

@@ -126,3 +126,15 @@ class TaskPatchIn(BaseModel):
     effort: str | None = None
     depends_on: list[str] | None = None
     status: str | None = None
+
+
+class ClickUpPushRequest(BaseModel):
+    dry_run: bool = True
+
+
+class ClickUpPushResult(BaseModel):
+    id: str
+    title: str
+    action: str  # "would_create" | "created" | "skip"
+    task_ref: str | None = None
+    task_url: str | None = None

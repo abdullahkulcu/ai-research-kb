@@ -39,3 +39,6 @@ web:
   task_extraction:
     heading: "Yapılacaklar"
   docs_root: "research"
+
+clickup:
+  list_id: null

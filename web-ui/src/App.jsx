@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Login from "./pages/Login.jsx";
 import Search from "./pages/Search.jsx";
+import Tasks from "./pages/Tasks.jsx";
 import DocView from "./pages/DocView.jsx";
 
 const STORAGE_KEY = "ai-research-kb.session";
@@ -16,6 +17,7 @@ function loadSession() {
 
 export default function App() {
   const [session, setSession] = useState(loadSession);
+  const [tab, setTab] = useState("search"); // "search" | "tasks"
   const [openDoc, setOpenDoc] = useState(null); // { cluster, doc } | null
 
   function handleLogin(session) {
@@ -37,6 +39,26 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <span className="brand">ai-research-kb</span>
+        <nav className="tab-nav">
+          <button
+            className={tab === "search" ? "tab-active" : ""}
+            onClick={() => {
+              setTab("search");
+              setOpenDoc(null);
+            }}
+          >
+            Ara
+          </button>
+          <button
+            className={tab === "tasks" ? "tab-active" : ""}
+            onClick={() => {
+              setTab("tasks");
+              setOpenDoc(null);
+            }}
+          >
+            Task'lar
+          </button>
+        </nav>
         <span className="user-badge">
           {session.username} · <em>{session.role}</em>
         </span>
@@ -49,12 +71,15 @@ export default function App() {
         {openDoc ? (
           <DocView
             token={session.token}
+            role={session.role}
             cluster={openDoc.cluster}
             doc={openDoc.doc}
             onBack={() => setOpenDoc(null)}
             onOpenDoc={(cluster, doc) => setOpenDoc({ cluster, doc })}
             onAuthError={handleLogout}
           />
+        ) : tab === "tasks" ? (
+          <Tasks token={session.token} role={session.role} onAuthError={handleLogout} />
         ) : (
           <Search
             token={session.token}

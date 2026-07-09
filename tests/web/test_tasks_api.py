@@ -73,3 +73,36 @@ def test_get_tasks_before_generate_is_empty(writable_client):
     r = writable_client.get(f"/api/tasks/{CLUSTER}", headers=headers)
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_viewer_cannot_generate_tasks(writable_client):
+    headers = auth_header(writable_client, "viewer1", "viewerpass123")
+    r = writable_client.post(f"/api/tasks/{CLUSTER}/generate", headers=headers)
+    assert r.status_code == 403
+
+
+def test_viewer_cannot_patch_or_approve_task(writable_client):
+    editor_headers = auth_header(writable_client, "editor1", "editorpass123")
+    tasks = writable_client.post(f"/api/tasks/{CLUSTER}/generate", headers=editor_headers).json()
+    task_id = tasks[0]["id"]
+
+    viewer_headers = auth_header(writable_client, "viewer1", "viewerpass123")
+    r = writable_client.patch(
+        f"/api/tasks/{CLUSTER}/{task_id}", json={"status": "approved"}, headers=viewer_headers
+    )
+    assert r.status_code == 403
+
+    r = writable_client.post(
+        f"/api/tasks/{CLUSTER}/{task_id}/approve", headers=viewer_headers
+    )
+    assert r.status_code == 403
+
+
+def test_admin_can_generate_and_approve_tasks(writable_client):
+    headers = auth_header(writable_client, "admin1", "adminpass123")
+    tasks = writable_client.post(f"/api/tasks/{CLUSTER}/generate", headers=headers).json()
+    task_id = tasks[0]["id"]
+
+    r = writable_client.post(f"/api/tasks/{CLUSTER}/{task_id}/approve", headers=headers)
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"

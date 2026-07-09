@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ...comments import add_comment, list_comments, resolve_comment
-from ..deps import get_current_user, get_docs_root
+from ..deps import get_current_user, get_docs_root, require_role
+from ..roles import Role
 from ..schemas import CommentIn, CommentOut
 
 router = APIRouter(tags=["comments"])
@@ -30,7 +31,7 @@ def post_comment(
     doc: str,
     payload: CommentIn,
     root=Depends(get_docs_root),
-    user=Depends(get_current_user),
+    user=Depends(require_role(Role.editor)),
 ):
     path = _doc_path(root, cluster, doc)
     try:
@@ -46,7 +47,7 @@ def resolve_comment_route(
     doc: str,
     comment_id: str,
     root=Depends(get_docs_root),
-    user=Depends(get_current_user),
+    user=Depends(require_role(Role.editor)),
 ):
     path = _doc_path(root, cluster, doc)
     try:

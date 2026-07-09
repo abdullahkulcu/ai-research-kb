@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ...config import load_config
 from ...repo import find_repo_root
-from ..deps import get_current_user, get_docs_root
+from ..deps import get_current_user, get_docs_root, require_role
+from ..roles import Role
 from ..schemas import TaskOut, TaskPatchIn
 from ..services.clusters import cluster_dir as resolve_cluster_dir
 from ..services.tasks import generate_tasks, load_task_plan, patch_task
@@ -20,7 +21,7 @@ def get_tasks(cluster: str, root=Depends(get_docs_root), _user=Depends(get_curre
 
 @router.post("/tasks/{cluster}/generate", response_model=list[TaskOut])
 def post_generate_tasks(
-    cluster: str, root=Depends(get_docs_root), _user=Depends(get_current_user)
+    cluster: str, root=Depends(get_docs_root), _user=Depends(require_role(Role.editor))
 ):
     cdir = resolve_cluster_dir(root, cluster)
     heading = load_config(find_repo_root(root))["web"]["task_extraction"]["heading"]
@@ -34,7 +35,7 @@ def patch_task_route(
     task_id: str,
     payload: TaskPatchIn,
     root=Depends(get_docs_root),
-    _user=Depends(get_current_user),
+    _user=Depends(require_role(Role.editor)),
 ):
     cdir = resolve_cluster_dir(root, cluster)
     try:
@@ -48,7 +49,10 @@ def patch_task_route(
 
 @router.post("/tasks/{cluster}/{task_id}/approve", response_model=TaskOut)
 def approve_task_route(
-    cluster: str, task_id: str, root=Depends(get_docs_root), _user=Depends(get_current_user)
+    cluster: str,
+    task_id: str,
+    root=Depends(get_docs_root),
+    _user=Depends(require_role(Role.editor)),
 ):
     cdir = resolve_cluster_dir(root, cluster)
     try:

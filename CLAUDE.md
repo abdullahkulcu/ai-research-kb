@@ -68,25 +68,30 @@ kontroller kasıtlı olarak ayrı modüllerde: `frontmatter.py` + `comments.py`
   "Yapılacaklar") altındaki numaralı listeleri çıkarır. `generate_tasks` HER
   ZAMAN idempotent ve non-destructive olmalı — var olan task'ları asla silme/
   ezme, sadece yeni (stable id ile) ekle.
-- Faz 1a'da tüm uçlar `get_current_user`'a bağlı (geçerli JWT yeterli); rol
-  bazlı kısıtlama (`require_role`, `roles.py`'de hazır) henüz hiçbir route'a
-  bağlanmadı — bu bilinçli, Faz 1c'nin kapsamı.
+- RBAC (Faz 1c): yazma uçları (`comments` POST/resolve, `tasks` generate/
+  patch/approve) `require_role(Role.editor)` ister; okuma uçları herkese
+  (`get_current_user`) açık. `admin` hiyerarşide `editor`'ü kapsar
+  (`roles.py::at_least`) — yeni bir admin-only uç eklerken bunu unutmayın.
 
 ```
 web-ui/            # opsiyonel Vite+React frontend (npm install, ayrı proje)
   src/api.js         # fetch wrapper; 401 -> AuthError (instanceof ile yakala)
-  src/App.jsx        # session state (localStorage), login/search/docview geçişi
-  src/pages/         # Login, Search, DocView
+  src/roles.js       # isEditorOrAbove(role) — backend roles.py ile eş anlamlı,
+                     # SADECE UI gizleme; gerçek zorlama backend'de
+  src/App.jsx        # session state (localStorage), tab nav (Ara/Task'lar) +
+                     # doküman görünümü geçişi
+  src/pages/         # Login, Search, DocView, Tasks
+  src/components/Comments.jsx  # DocView içine gömülü yorum thread'i; editor+
+                                # değilse form yerine bilgi metni gösterir
   src/markdown.js    # elle yazılmış küçük markdown parser (kütüphane YOK —
                      # başlık/liste/paragraf yeterli, "minimal frontend" kapsamı)
 ```
 
 `web-ui/` hakkında önemli noktalar:
-- 1b kapsamı kasıtlı olarak dar: login + arama + doküman görünümü. Yorum
-  thread'i, task listesi, ClickUp butonu, handoff indirme HENÜZ YOK — sırasıyla
-  1c (rol bazlı UI) ve Faz 2 (ClickUp) ile birlikte eklenecek; onlardan önce
-  eklemek rol kontrolü olmadan editor-only özellikleri herkese göstermek
-  anlamına gelirdi.
+- Handoff indirme ve ClickUp butonu HENÜZ YOK — Faz 2'nin kapsamı.
+- Rol bazlı UI gizleme (`isEditorOrAbove`) sadece görünürlük içindir; gerçek
+  yetkilendirme backend'de (`require_role`) yapılır — frontend kodunu
+  değiştirmek bir viewer'a yazma izni VERMEZ, backend zaten 403 döner.
 - **CORS tuzağı**: tarayıcı `localhost` ve `127.0.0.1`'i FARKLI origin sayar.
   `config.yaml`'daki `web.cors_origins` varsayılanı `http://localhost:5173`;
   Vite'ı `--host 127.0.0.1` ile başlatırsanız CORS hatası alırsınız — `--host
@@ -125,7 +130,8 @@ ve Faz 3'ün (flow/task/ClickUp) web-native karşılıklarını üretiyor, CLI'y
 silmeden. Alt adımlar (kullanıcının kendi numaralandırması):
 - ✅ 1a — Backend scaffold (FastAPI, JWT, `web/` altında yukarıdaki uçlar)
 - ✅ 1b — Frontend skeleton (`web-ui/`: login, arama, doküman görünümü)
-- ⏳ 1c — Permission layer (admin/editor/viewer route zorlaması)
+- ✅ 1c — Permission layer (admin/editor/viewer route zorlaması, backend +
+  frontend UI gizleme)
 - ⏳ Faz 2 (web) — ClickUp entegrasyonu panelden (dry-run → push, idempotent)
 
 Kullanıcı onayı olmadan bir sonraki alt adıma geçmeyin — her adımdan sonra

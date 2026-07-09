@@ -53,3 +53,31 @@ def test_resolve_unknown_comment_returns_404(writable_client):
         f"/api/docs/{CLUSTER}/{DOC}/comments/does-not-exist/resolve", headers=headers
     )
     assert r.status_code == 404
+
+
+def test_viewer_cannot_add_comment(writable_client):
+    headers = auth_header(writable_client, "viewer1", "viewerpass123")
+    r = writable_client.post(
+        f"/api/docs/{CLUSTER}/{DOC}/comments",
+        json={"anchor": "Riskler", "body": "viewer yorumu"},
+        headers=headers,
+    )
+    assert r.status_code == 403
+
+
+def test_viewer_cannot_resolve_comment(writable_client):
+    headers = auth_header(writable_client, "viewer1", "viewerpass123")
+    r = writable_client.post(
+        f"/api/docs/{CLUSTER}/{DOC}/comments/c1a2b3c4/resolve", headers=headers
+    )
+    assert r.status_code == 403
+
+
+def test_admin_can_add_comment(writable_client):
+    headers = auth_header(writable_client, "admin1", "adminpass123")
+    r = writable_client.post(
+        f"/api/docs/{CLUSTER}/{DOC}/comments",
+        json={"anchor": "Riskler", "body": "admin yorumu"},
+        headers=headers,
+    )
+    assert r.status_code == 200

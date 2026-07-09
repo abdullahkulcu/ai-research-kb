@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch, AuthError } from "../api.js";
+import Comments from "../components/Comments.jsx";
 import { parseBlocks } from "../markdown.js";
 
 const headingTag = (level) => `h${Math.min(level + 1, 6)}`;
@@ -30,7 +31,7 @@ function Block({ block, index }) {
   return <p key={index}>{block.text}</p>;
 }
 
-export default function DocView({ token, cluster, doc, onBack, onOpenDoc, onAuthError }) {
+export default function DocView({ token, role, cluster, doc, onBack, onOpenDoc, onAuthError }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -113,6 +114,17 @@ export default function DocView({ token, cluster, doc, onBack, onOpenDoc, onAuth
                 <Block key={i} block={block} index={i} />
               ))}
           </div>
+
+          <Comments
+            token={token}
+            role={role}
+            cluster={cluster}
+            doc={doc}
+            headings={parseBlocks(data.body)
+              .filter((b) => b.type === "heading")
+              .map((b) => b.text)}
+            onAuthError={onAuthError}
+          />
         </>
       )}
     </div>

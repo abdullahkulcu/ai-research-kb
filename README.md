@@ -37,7 +37,8 @@ kod etkisi üretip ClickUp gibi harici bir task sistemine aktarır.
     API'ler (search, get_doc, comments, consistency, minimal task-plan).
   - ✅ **1b — Frontend skeleton**: React login + arama + doküman görünümü
     (`web-ui/`).
-  - ⏳ **1c — Permission layer**: admin/editor/viewer rol zorlaması.
+  - ✅ **1c — Permission layer**: admin/editor/viewer rol zorlaması (backend
+    403 + frontend'de rol bazlı UI gizleme).
   - ⏳ **Faz 2 (web)** — ClickUp entegrasyonu panelden (dry-run → push).
 - ⏳ Yerel embedding index / gerçek RAG araması ve MCP server, 1a'daki
   basit anahtar kelime aramasının yerini alacak (bkz. "Bilinen sınırlamalar").
@@ -154,20 +155,24 @@ ai-research-kb serve   # http://127.0.0.1:8000
 Panelin taradığı dizin `config.yaml`'daki `web.docs_root` ile belirlenir
 (varsayılan `research`; demo için `examples` yapılabilir).
 
-### Uçlar (Faz 1a — kimlik doğrulama var, rol zorlaması henüz yok → 1c)
+### Uçlar ve roller
 
-| Uç | Açıklama |
-| --- | --- |
-| `POST /api/auth/login` | `{username, password}` → JWT + rol |
-| `GET /api/auth/me` | Geçerli kullanıcı |
-| `GET /api/search?q=&cluster=&status=&doc_type=` | Anahtar kelime araması; sonuçlar `related_docs` içerir |
-| `GET /api/clusters`, `GET /api/clusters/{cluster}` | Cluster listesi + çapraz referans haritası |
-| `GET /api/docs/{cluster}/{doc}` | Frontmatter + doküman gövdesi |
-| `GET/POST /api/docs/{cluster}/{doc}/comments`, `.../resolve` | Yorum katmanını sarar (`comments.py`) |
-| `GET /api/consistency?cluster=` | Tutarlılık raporu (a-e), JSON |
-| `GET /api/tasks/{cluster}`, `POST .../generate`, `PATCH .../{id}`, `POST .../{id}/approve` | Bkz. "Task planlama (MVP)" |
+| Uç | Açıklama | Minimum rol |
+| --- | --- | --- |
+| `POST /api/auth/login` | `{username, password}` → JWT + rol | — |
+| `GET /api/auth/me` | Geçerli kullanıcı | viewer |
+| `GET /api/search?q=&cluster=&status=&doc_type=` | Anahtar kelime araması; sonuçlar `related_docs` içerir | viewer |
+| `GET /api/clusters`, `GET /api/clusters/{cluster}` | Cluster listesi + çapraz referans haritası | viewer |
+| `GET /api/docs/{cluster}/{doc}` | Frontmatter + doküman gövdesi | viewer |
+| `GET /api/docs/{cluster}/{doc}/comments` | Yorum listesi (`comments.py`'yi sarar) | viewer |
+| `POST .../comments`, `.../comments/{id}/resolve` | Yorum ekle/çözümle | **editor** |
+| `GET /api/consistency?cluster=` | Tutarlılık raporu (a-e), JSON | viewer |
+| `GET /api/tasks/{cluster}` | Task listesi | viewer |
+| `POST .../generate`, `PATCH .../{id}`, `POST .../{id}/approve` | Bkz. "Task planlama (MVP)" | **editor** |
 
-Tüm uçlar `Authorization: Bearer <token>` ister.
+Tüm uçlar `Authorization: Bearer <token>` ister; roller hiyerarşiktir
+(`admin` > `editor` > `viewer`) — editor gerektiren bir uca admin de erişebilir.
+Yetkisiz istek `403` döner (`web/deps.py::require_role`).
 
 ### Task planlama (MVP)
 
@@ -195,10 +200,12 @@ imzası sabit tutuldu ki gerçek indeks eklendiğinde API/frontend değişmesin.
 ## Frontend (`web-ui/`, opsiyonel)
 
 Minimal bir Vite + React uygulaması: giriş, arama sekmesi, doküman görünümü
-(frontmatter tablosu + `related_docs` üzerinden gezinme). Yorum thread'i, task
-listesi ve ClickUp butonu henüz yok — sırasıyla 1c (rol zorlaması) ve Faz 2
-(ClickUp) ile birlikte gelecek, çünkü bunları rol kontrolü olmadan göstermek
-yanıltıcı olurdu.
+(frontmatter tablosu + `related_docs` üzerinden gezinme + yorum thread'i),
+Task'lar sekmesi (cluster seç → listele/oluştur/onayla/düzenle). Yorum ekleme
+formu ve task yazma aksiyonları sadece `editor`/`admin` rolünde görünür —
+`viewer` aynı verileri salt-okunur görür (gerçek zorlama backend'de; frontend
+sadece UI'yı buna göre gizler). ClickUp butonu ve handoff indirme henüz yok,
+Faz 2'de eklenecek.
 
 ```bash
 cd web-ui
